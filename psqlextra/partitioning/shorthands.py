@@ -6,6 +6,7 @@ from psqlextra.models import PostgresPartitionedModel
 
 from .config import PostgresPartitioningConfig
 from .current_time_strategy import PostgresCurrentTimePartitioningStrategy
+from .current_time_and_category_strategy import PostgresCurrentTimeAndCategoryPartitioningStrategy
 from .time_partition_size import PostgresTimePartitionSize
 
 
@@ -73,5 +74,75 @@ def partition_by_current_time(
         ),
     )
 
+def partition_by_current_time_and_categories(
+    model: Type[PostgresPartitionedModel],
+    count: int,
+    years: Optional[int] = None,
+    months: Optional[int] = None,
+    weeks: Optional[int] = None,
+    days: Optional[int] = None,
+    hours: Optional[int] = None,
+    max_age: Optional[relativedelta] = None,
+    name_format: Optional[str] = None,
+    categories: Optional[list] = [],
+) -> PostgresPartitioningConfig:
+    """Short-hand for generating a partitioning config that partitions the
+    specified model by time.
 
-__all_ = ["partition_by_current_time"]
+    One specifies one of the `years`, `months`, `weeks`
+    or `days` parameter to indicate the size of each
+    partition. These parameters cannot be combined.
+
+    Arguments:
+        count:
+            The amount of partitions to create ahead of
+            the current date/time.
+
+        years:
+            The amount of years each partition should contain.
+
+        months:
+            The amount of months each partition should contain.
+
+        weeks:
+            The amount of weeks each partition should contain.
+
+        days:
+            The amount of days each partition should contain.
+
+        hours:
+            The amount of hours each partition should contain.
+
+        max_age:
+            The maximum age of a partition (calculated from the
+            start of the partition).
+
+            Partitions older than this are deleted when running
+            a delete/cleanup run.
+
+        name_format:
+            The datetime format which is being passed to datetime.strftime
+            to generate the partition name. The category name will be appended to this.
+
+        categories:
+            List of categories. List items must be convertible to string.
+    """
+
+    size = PostgresTimePartitionSize(
+        years=years, months=months, weeks=weeks, days=days, hours=hours
+    )
+
+    return PostgresPartitioningConfig(
+        model=model,
+        strategy=PostgresCurrentTimeAndCategoryPartitioningStrategy(
+            size=size,
+            count=count,
+            max_age=max_age,
+            name_format=name_format,
+            categories=categories,
+        ),
+    )
+
+
+
+__all_ = ["partition_by_current_time","partition_by_current_time_and_categories"]

@@ -712,15 +712,24 @@ class PostgresSchemaEditor(SchemaEditor):
 
         table_name = self.create_partition_table_name(model, name)
 
+        if not isinstance(from_values, list):
+            from_values = [from_values]
+        if not isinstance(to_values, list):
+            to_values = [to_values]
+
+        assert len(from_values) == len(to_values), ("from_values and to_values must have the same length")
+
         sql = self.sql_add_range_partition % (
             self.quote_name(table_name),
             self.quote_name(model._meta.db_table),
-            "%s",
-            "%s",
+            ",".join(["%s" for _ in range(len(from_values))]),
+            ",".join(["%s" for _ in range(len(to_values))]),
         )
+        print(sql)
+        print(from_values + to_values)
 
         with transaction.atomic(using=self.connection.alias):
-            self.execute(sql, (from_values, to_values))
+            self.execute(sql, tuple(from_values + to_values))
 
             if comment:
                 self.set_comment_on_table(table_name, comment)
