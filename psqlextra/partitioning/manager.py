@@ -98,22 +98,19 @@ class PostgresPartitioningManager:
         """Creates a partitioning plan for one partitioning config."""
 
         connection = connections[using or "default"]
-        table = self._get_partitioned_table(connection, config.model)
-
+        
         model_plan = PostgresModelPartitioningPlan(config)
 
         if not skip_create:
             for partition in config.strategy.to_create():
-                if table.partition_by_name(name=partition.name()):
+                if self._get_partition_from_table(connection, config.model, partition):
                     continue
 
                 model_plan.creations.append(partition)
 
         if not skip_delete:
             for partition in config.strategy.to_delete():
-                introspected_partition = table.partition_by_name(
-                    name=partition.name()
-                )
+                introspected_partition = self._get_partition_from_table(connection, config.model, partition)
                 if not introspected_partition:
                     break
 
@@ -126,24 +123,42 @@ class PostgresPartitioningManager:
             return None
 
         return model_plan
-
+    
     @staticmethod
-    def _get_partitioned_table(
-        connection, model: Type[PostgresPartitionedModel]
-    ):
+    def _get_partition_from_table(
+        connection, model: Type[PostgresPartitionedModel], search_partition: PostgresPartition
+    ) -> bool:
         with connection.cursor() as cursor:
             table = connection.introspection.get_partitioned_table(
                 cursor, model._meta.db_table
             )
 
-        if not table:
-            raise PostgresPartitioningError(
-                f"Model {model.__name__}, with table "
-                f"{model._meta.db_table} does not exists in the "
-                "database. Did you run `python manage.py migrate`?"
-            )
-
-        return table
+            if not table:
+                raise PostgresPartitioningError(
+                    f"Model {model.__name__}, with table "
+                    f"{model._meta.db_table} does not exists in the "
+                    "database. Did you run `python manage.py migrate`?"
+                )
+            
+            if len(getattr(model._partitioning_meta, "sub_key", [])) > 0:         
+                partition = table.partition_by_name(
+                    name=search_partition.name()
+                ) 
+                if partition:
+                    return partition
+                else:
+                    return next(
+                        (
+                          partition
+                          for partition in connection.introspection.get_partitions(cursor, model._meta.db_table)  
+                          if connection.introspection.get_partitioned_table(cursor, partition.full_name).partition_by_name(name=search_partition.name())
+                        ),
+                        None
+                    )
+            else:
+                return table.partition_by_name(
+                    name=search_partition.name()
+                ) 
 
     @staticmethod
     def _validate_configs(configs: List[PostgresPartitioningConfig]):
