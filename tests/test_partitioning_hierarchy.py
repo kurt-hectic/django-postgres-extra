@@ -69,18 +69,18 @@ def test_partitioning_hierarchy_time_yearly_apply():
 
     table = _get_partitioned_table(model)
     assert len(table.partitions) == 2
-    assert table.partitions[0].name == "categories_1"
-    assert table.partitions[1].name == "categories_2"
+    assert table.partitions[0].name == "1"
+    assert table.partitions[1].name == "2"
 
     sub_table = _get_sub_partitions(model, table.partitions[0].name)
     assert len(sub_table.partitions) == 2
-    assert sub_table.partitions[0].full_name.endswith("categories_1_2019")
-    assert sub_table.partitions[1].full_name.endswith("categories_1_2020")
+    assert sub_table.partitions[0].full_name.endswith("1_2019")
+    assert sub_table.partitions[1].full_name.endswith("1_2020")
 
     sub_table = _get_sub_partitions(model, table.partitions[1].name)
     assert len(sub_table.partitions) == 2
-    assert sub_table.partitions[0].full_name.endswith("categories_2_2019")
-    assert sub_table.partitions[1].full_name.endswith("categories_2_2020")
+    assert sub_table.partitions[0].full_name.endswith("2_2019")
+    assert sub_table.partitions[1].full_name.endswith("2_2020")
   
 
  
@@ -207,3 +207,62 @@ def test_schema_editor_create_sub_partitioned_model_no_field():
 
     with pytest.raises(ImproperlyConfigured):
         schema_editor.create_partitioned_model(model)
+
+
+
+@pytest.mark.skipif(
+    django.VERSION < (5, 2),
+    reason="Django < 5.2 doesn't implement composite primary keys",
+)
+@pytest.mark.postgres_version(lt=110000)
+def test_partitioning_hierarchy_custom_name():
+    """Tests whether custom name partitions work as expected."""
+
+    model = define_fake_partitioned_model(
+        fields={
+            "id": models.AutoField(primary_key=False),
+            "category_id": models.IntegerField(),
+            "date": models.DateTimeField(),
+            "my_custom_pk": models.CompositePrimaryKey("id", "category_id", "date"),
+        },
+        partitioning_options=dict(
+            key=["category_id"], 
+            method=PostgresPartitioningMethod.LIST,
+            sub_key=["date"], 
+            sub_method=PostgresPartitioningMethod.RANGE,
+            )
+    )
+    
+    
+    
+
+    schema_editor = connection.schema_editor()
+    schema_editor.create_partitioned_model(model)
+
+    with freezegun.freeze_time("2019-1-1"):
+        manager = PostgresPartitioningManager(
+            [partition_by_category_and_current_time(
+                model, 
+                categories=[1, 2], 
+                years=1, 
+                count=2, 
+                name_format=("category_%s", "time_%Y"),
+            )]
+        )
+        manager.plan().apply()
+
+    table = _get_partitioned_table(model)
+    assert len(table.partitions) == 2
+    assert table.partitions[0].name == "category_1"
+    assert table.partitions[1].name == "category_2"
+
+    sub_table = _get_sub_partitions(model, table.partitions[0].name)
+    assert len(sub_table.partitions) == 2
+    assert sub_table.partitions[0].full_name.endswith("category_1_time_2019")
+    assert sub_table.partitions[1].full_name.endswith("category_1_time_2020")
+
+    sub_table = _get_sub_partitions(model, table.partitions[1].name)
+    assert len(sub_table.partitions) == 2
+    assert sub_table.partitions[0].full_name.endswith("category_2_time_2019")
+    assert sub_table.partitions[1].full_name.endswith("category_2_time_2020")
+  

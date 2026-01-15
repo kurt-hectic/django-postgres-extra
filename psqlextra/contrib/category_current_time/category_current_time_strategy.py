@@ -26,7 +26,7 @@ class PostgresCategoryCurrentTimePartitioningStrategy(
         size: PostgresTimePartitionSize,
         count: int,
         max_age: Optional[relativedelta] = None,
-        name_format: Optional[str] = None,
+        name_format: Optional[tuple[str, str]] = None,
     ) -> None:
         """Initializes a new instance of :see:PostgresTimePartitioningStrategy.
 
@@ -50,13 +50,13 @@ class PostgresCategoryCurrentTimePartitioningStrategy(
         self.size = size
         self.count = count
         self.max_age = max_age
-        self.name_format = name_format
+        self.name_format = name_format or (None, None)
         self.categories = categories
 
     def to_create(self) -> Generator[PostgresTimeSubPartition, None, None]:
 
         for category in self.categories:
-            lp = PostgresListPartition(values=[category])
+            lp = PostgresListPartition(values=[category], name_format=self.name_format[0])
             yield lp
 
             current_datetime = self.size.start(self.get_start_datetime())
@@ -66,6 +66,7 @@ class PostgresCategoryCurrentTimePartitioningStrategy(
                     parent_partition=lp,
                     start_datetime=current_datetime,
                     size=self.size,
+                    name_format=self.name_format[1],
                 )
 
                 current_datetime += self.size.as_delta()
@@ -80,28 +81,22 @@ class PostgresCategoryCurrentTimePartitioningStrategy(
         current_datetime = self.size.start(
                 self.get_start_datetime() - self.max_age
             )
-        
-        print(self.categories)
-        print(current_datetime)
 
         while True:
             
             for category in self.categories:
-                lp = PostgresListPartition(values=[category])
-        
-                print("Deleting partition for category:", category)
-                print("Datetime:", current_datetime)
-                print("Size:", self.size)
-                print("partition name:", lp.name())
+                lp = PostgresListPartition(values=[category], name_format=self.name_format[0])
+
                 yield PostgresTimeSubPartition(
                     parent_partition=lp,
                     start_datetime=current_datetime,
                     size=self.size,
+                    name_format=self.name_format[1],
                 )
 
             current_datetime -= self.size.as_delta()
 
-            #yield lp
+            
 
 
     def get_start_datetime(self) -> datetime:

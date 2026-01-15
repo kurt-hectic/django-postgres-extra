@@ -86,11 +86,12 @@ class PostgresListPartition(PostgresPartition):
     """Base class for a PostgreSQL table partition in a list partitioned
     table."""
 
-    def __init__(self, values: list[Any]) -> None:
+    def __init__(self, values: list[Any], name_format: Optional[str] = None) -> None:
         self.values = values
+        self.name_format = name_format or "%s"
 
     def name(self) -> str:
-        return "categories_" + "_".join(str(v).lower() for v in self.values)
+        return self.name_format % "_".join(str(v).lower() for v in self.values)
 
 
     def deconstruct(self) -> dict:
