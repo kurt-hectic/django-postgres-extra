@@ -44,6 +44,10 @@ class PostgresCategoryCurrentTimePartitioningStrategy(PostgresPartitioningStrate
                 Maximum age of a partition. Partitions
                 older than this are deleted during
                 auto cleanup.
+
+            name_format:
+                Optional name format for the partitions supplied as a tuple.  The first value is used
+                for the category partitions, the second for the time partitions.
         """
 
         self.size = size

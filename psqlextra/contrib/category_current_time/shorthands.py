@@ -11,6 +11,7 @@ from .category_current_time_strategy import (
     PostgresCategoryCurrentTimePartitioningStrategy,
 )
 
+
 def partition_by_category_and_current_time(
     model: Type[PostgresPartitionedModel],
     count: int,
@@ -61,8 +62,10 @@ def partition_by_category_and_current_time(
             a delete/cleanup run.
 
         name_format:
-            The datetime format which is being passed to datetime.strftime
-            to generate the partition name.
+            The datetime format supplied as a tuple.
+            The first value creates the first level partition names
+            and the second value is passed to datetime.strftime to generate the
+            second level partition name.
     """
 
     size = PostgresTimePartitionSize(
