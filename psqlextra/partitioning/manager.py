@@ -128,6 +128,7 @@ class PostgresPartitioningManager:
     def _get_partition_from_table(
         connection, model: Type[PostgresPartitionedModel], search_partition: PostgresPartition
     ) -> bool:
+        """Returns a partition from the table by name. Traverses partitions if the model is sub-partitioned"""
         with connection.cursor() as cursor:
             table = connection.introspection.get_partitioned_table(
                 cursor, model._meta.db_table
@@ -151,7 +152,7 @@ class PostgresPartitioningManager:
                         (
                           partition
                           for partition in connection.introspection.get_partitions(cursor, model._meta.db_table)  
-                          if connection.introspection.get_partitioned_table(cursor, partition.full_name).partition_by_name(name=search_partition.name())
+                          if connection.introspection.get_partitioned_table(cursor, partition.full_name) and connection.introspection.get_partitioned_table(cursor, partition.full_name).partition_by_name(name=search_partition.name())
                         ),
                         None
                     )
